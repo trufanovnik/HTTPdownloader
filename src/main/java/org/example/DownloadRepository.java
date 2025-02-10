@@ -15,7 +15,10 @@ public class DownloadRepository {
     private static Semaphore semaphore = new Semaphore(1);
 
     protected static void download() {
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
+
         try (BufferedReader reader = new BufferedReader(new FileReader("src/main/resources/downloadLinks.txt"))) {
             String link;
             while ((link = reader.readLine()) != null) {
@@ -34,13 +37,22 @@ public class DownloadRepository {
                 semaphore.acquire();
             }
             System.out.println("Downloading: " + link);
-            String fileName = "file_" + link.hashCode() + ".zip";
+
+            String[] parts = link.split("/");
+            String owner = parts[parts.length - 4]; // Владелец репозитория
+            String repo = parts[parts.length - 3];   // Имя репозитория
+            String branch = parts[parts.length - 1];
+
+            String fileName = owner + "_" + repo + "_" + branch + ".zip";
+
             Path filePath = Paths.get("src/main/resources/downloaded_files", fileName);
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(link))
                     .GET()
                     .build();
             HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(filePath));
+
             System.out.println("File " + fileName + " downloaded: ");
 
         } catch (InterruptedException | IOException e) {
