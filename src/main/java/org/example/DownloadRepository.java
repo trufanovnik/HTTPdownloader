@@ -7,12 +7,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Semaphore;
 
 public class DownloadRepository {
     private static Semaphore semaphore = new Semaphore(1);
+    private static java.nio.file.Files Files;
 
     protected static void download() {
         HttpClient client = HttpClient.newBuilder()
@@ -44,6 +46,11 @@ public class DownloadRepository {
             String branch = parts[parts.length - 1];
 
             String fileName = owner + "_" + repo + "_" + branch + ".zip";
+            
+            Path downloadDir = Paths.get("src/main/resources/downloaded_files");
+            if (!Files.exists(downloadDir)) {
+                Files.createDirectories(downloadDir);
+            }
 
             Path filePath = Paths.get("src/main/resources/downloaded_files", fileName);
 
