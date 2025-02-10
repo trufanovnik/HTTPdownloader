@@ -1,0 +1,2 @@
+https://api.github.com/repos/google/gson/zipball/main
+https://api.github.com/repos/Ecwid/new-job/zipball/master
