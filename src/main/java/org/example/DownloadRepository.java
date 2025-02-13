@@ -1,8 +1,6 @@
 package org.example;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,7 +11,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.Semaphore;
 
 public class DownloadRepository {
-    private static Semaphore semaphore = new Semaphore(1);
+    private static Semaphore semaphore = new Semaphore(2);
     private static java.nio.file.Files Files;
 
     protected static void download() {
@@ -40,19 +38,8 @@ public class DownloadRepository {
             }
             System.out.println("Downloading: " + link);
 
-            String[] parts = link.split("/");
-            String owner = parts[parts.length - 4]; // Владелец репозитория
-            String repo = parts[parts.length - 3];   // Имя репозитория
-            String branch = parts[parts.length - 1];
-
-            String fileName = owner + "_" + repo + "_" + branch + ".zip";
-            
-            Path downloadDir = Paths.get("src/main/resources/downloaded_files");
-            if (!Files.exists(downloadDir)) {
-                Files.createDirectories(downloadDir);
-            }
-
-            Path filePath = Paths.get("src/main/resources/downloaded_files", fileName);
+            String fileName = getFileName(link);
+            Path filePath = getSavingPath(fileName);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(link))
@@ -61,11 +48,29 @@ public class DownloadRepository {
             HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(filePath));
 
             System.out.println("File " + fileName + " downloaded: ");
-
         } catch (InterruptedException | IOException e) {
             throw new RuntimeException(e);
         }finally {
             semaphore.release();
         }
+    }
+
+    private static Path getSavingPath(String fileName) throws IOException {
+        Path downloadDir = Paths.get("src/main/resources/downloaded_files");
+        if (!Files.exists(downloadDir)) {
+            Files.createDirectories(downloadDir);
+        }
+        Path path = Paths.get("src/main/resources/downloaded_files", fileName);
+        return path;
+    }
+
+    private static String getFileName(String link) {
+        String[] parts = link.split("/");
+        String owner = parts[parts.length - 4]; // Владелец репозитория
+        String repo = parts[parts.length - 3];   // Имя репозитория
+        String branch = parts[parts.length - 1];
+
+        String fileName = owner + "_" + repo + "_" + branch + ".zip";
+        return fileName;
     }
 }
