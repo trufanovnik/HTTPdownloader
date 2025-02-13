@@ -9,10 +9,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class DownloadRepository {
     private static Semaphore semaphore = new Semaphore(2);
     private static java.nio.file.Files Files;
+    private static final long RATE_LIMIT_BYTES_PER_SECOND = 500 * 1024;
+    private static final AtomicLong bytesWritten = new AtomicLong(0);
+    private static long startTime = System.currentTimeMillis();
 
     protected static void download() {
         HttpClient client = HttpClient.newBuilder()
@@ -45,13 +49,50 @@ public class DownloadRepository {
                     .uri(URI.create(link))
                     .GET()
                     .build();
-            HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(filePath));
 
+            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream inputStream = response.body();
+                 OutputStream outputStream = Files.newOutputStream(filePath)) {
+
+                byte[] buffer = new byte[8192]; // Буфер для чтения данных
+                int bytesRead;
+
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    // Записываем данные в файл
+                    outputStream.write(buffer, 0, bytesRead);
+
+                    // Увеличиваем счётчик записанных байт
+                    bytesWritten.addAndGet(bytesRead);
+
+                    // Проверяем скорость и при необходимости добавляем задержку
+                    throttle();
+                }
+            }
             System.out.println("File " + fileName + " downloaded: ");
         } catch (InterruptedException | IOException e) {
             throw new RuntimeException(e);
         }finally {
             semaphore.release();
+        }
+    }
+    private static void throttle() {
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = currentTime - startTime;
+
+        // Рассчитываем, сколько байт можно записать за текущее время
+        long allowedBytes = (elapsedTime * RATE_LIMIT_BYTES_PER_SECOND) / 1000;
+
+        // Если записано больше, чем разрешено, добавляем задержку
+        if (bytesWritten.get() > allowedBytes) {
+            long sleepTime = (bytesWritten.get() * 1000 / RATE_LIMIT_BYTES_PER_SECOND) - elapsedTime;
+            if (sleepTime > 0) {
+                try {
+                    Thread.sleep(sleepTime);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Download interrupted", e);
+                }
+            }
         }
     }
 
