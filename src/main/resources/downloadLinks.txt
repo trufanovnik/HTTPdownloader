@@ -1,0 +1,5 @@
+https://api.github.com/repos/google/gson/zipball/main
+https://api.github.com/repos/Ecwid/new-job/zipball/master
+https://api.github.com/repos/google/guava/zipball/master
+https://api.github.com/repos/google/tsunami-security-scanner/zipball/master
+https://api.github.com/repos/google/error-prone/zipball/master

@@ -4,6 +4,8 @@ target/
 !**/src/test/**/target/
 
 ### IntelliJ IDEA ###
+/src/main/resources/downloaded_files/*
+!/src/main/resources/downloaded_files/.gitkeep
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
