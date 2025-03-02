@@ -1,6 +1,11 @@
 package org.example;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,30 +16,34 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class DownloadRepository {
-    private static Semaphore semaphore = new Semaphore(2);
-    private static java.nio.file.Files Files;
-    private static final long RATE_LIMIT_BYTES_PER_SECOND = 500 * 1024;
-    private static final AtomicLong bytesWritten = new AtomicLong(0);
+    private static final long RATE_LIMIT_BYTES_PER_SECOND = 900 * 1024;
+    private static final AtomicLong BYTES_WRITTEN = new AtomicLong(0);
+    private static final String PATH_LINKS_FOR_DOWNLOAD = "src/main/resources/downloadLinks.txt";
+    private static final String DOWNLOAD_DIRECTORY =  "src/main/resources/downloaded_files";
+    private static final int BUFFER_SIZE = 8192;
+
     private static long startTime = System.currentTimeMillis();
+    private static Semaphore semaphore = new Semaphore(2);
+    private static Files Files;
 
     protected static void download() {
         HttpClient client = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.ALWAYS)
                 .build();
 
-        try (BufferedReader reader = new BufferedReader(new FileReader("src/main/resources/downloadLinks.txt"))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(PATH_LINKS_FOR_DOWNLOAD))) {
             String link;
             while ((link = reader.readLine()) != null) {
                 String finalLink = link;
                 new Thread(() -> downloadFile(client, finalLink)).start();
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         }
     }
 
     protected static void downloadFile(HttpClient client, String link){
-        try{
+        try {
             if (!semaphore.tryAcquire()){
                 System.out.println("Steady: " + link);
                 semaphore.acquire();
@@ -53,7 +62,7 @@ public class DownloadRepository {
             try (InputStream inputStream = response.body();
                  OutputStream outputStream = Files.newOutputStream(filePath)) {
 
-                byte[] buffer = new byte[8192]; // Буфер для чтения данных
+                byte[] buffer = new byte[BUFFER_SIZE]; // Буфер для чтения данных
                 int bytesRead;
 
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -61,7 +70,7 @@ public class DownloadRepository {
                     outputStream.write(buffer, 0, bytesRead);
 
                     // Увеличиваем счётчик записанных байт
-                    bytesWritten.addAndGet(bytesRead);
+                    BYTES_WRITTEN.addAndGet(bytesRead);
 
                     // Проверяем скорость и при необходимости добавляем задержку
                     throttle();
@@ -82,8 +91,8 @@ public class DownloadRepository {
         long allowedBytes = (elapsedTime * RATE_LIMIT_BYTES_PER_SECOND) / 1000;
 
         // Если записано больше, чем разрешено, добавляем задержку
-        if (bytesWritten.get() > allowedBytes) {
-            long sleepTime = (bytesWritten.get() * 1000 / RATE_LIMIT_BYTES_PER_SECOND) - elapsedTime;
+        if (BYTES_WRITTEN.get() > allowedBytes) {
+            long sleepTime = (BYTES_WRITTEN.get() * 1000 / RATE_LIMIT_BYTES_PER_SECOND) - elapsedTime;
             if (sleepTime > 0) {
                 try {
                     Thread.sleep(sleepTime);
@@ -96,11 +105,11 @@ public class DownloadRepository {
     }
 
     private static Path getSavingPath(String fileName) throws IOException {
-        Path downloadDir = Paths.get("src/main/resources/downloaded_files");
+        Path downloadDir = Paths.get(DOWNLOAD_DIRECTORY);
         if (!Files.exists(downloadDir)) {
             Files.createDirectories(downloadDir);
         }
-        Path path = Paths.get("src/main/resources/downloaded_files", fileName);
+        Path path = Paths.get(DOWNLOAD_DIRECTORY, fileName);
         return path;
     }
 
